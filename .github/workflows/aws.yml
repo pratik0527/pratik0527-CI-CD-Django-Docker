@@ -51,10 +51,14 @@ jobs:
           --query "taskDefinition" \
           --output json)
 
-        # Update container definitions
-        UPDATED_TASK_DEFINITION=$(echo $TASK_DEFINITION_JSON | jq '.containerDefinitions[] | select(.name == "project1") | .image = "'${AWS_ACCOUNT_ID}'.dkr.ecr.'${AWS_REGION}'.amazonaws.com/project1-app:latest"' | jq -s '.')
+        # Remove metadata fields
+        CLEANED_TASK_DEFINITION_JSON=$(echo $TASK_DEFINITION_JSON | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+        
+        # Update container definitions with the new image
+        UPDATED_CONTAINER_DEFINITIONS=$(echo $CLEANED_TASK_DEFINITION_JSON | jq '.containerDefinitions[] | select(.name == "project1") | .image = "'${AWS_ACCOUNT_ID}'.dkr.ecr.'${AWS_REGION}'.amazonaws.com/project1-app:latest"' | jq -s '.')
 
-        NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION_JSON | jq --argjson containers "$UPDATED_TASK_DEFINITION" '.containerDefinitions = $containers')
+        # Replace the container definitions in the task definition
+        NEW_TASK_DEFINITION=$(echo $CLEANED_TASK_DEFINITION_JSON | jq --argjson containers "$UPDATED_CONTAINER_DEFINITIONS" '.containerDefinitions = $containers')
 
         echo "$NEW_TASK_DEFINITION" > new-task-def.json
 
