@@ -82,7 +82,7 @@ jobs:
       # Update the ECS service to use the latest task definition
       aws ecs update-service \
         --cluster my-cluster \
-        --service my-service \
+        --service test \
         --task-definition $LATEST_TASK_DEFINITION \
         --region $AWS_REGION
 
