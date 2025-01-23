@@ -35,10 +35,6 @@ jobs:
           IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app:latest"
           docker build -t $IMAGE_URI ./project1
           docker push $IMAGE_URI
-        elif [[ "${{ github.ref }}" == "refs/heads/branch2" ]]; then
-          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project2-app:latest"
-          docker build -t $IMAGE_URI ./project2
-          docker push $IMAGE_URI
         fi
 
     - name: Restart ECS Task
@@ -51,20 +47,6 @@ jobs:
           TASK_ARN=$(aws ecs list-tasks \
             --cluster my-ec2-cluster \
             --service-name project1-service \
-            --region $AWS_REGION \
-            --query "taskArns[0]" \
-            --output text)
-
-          if [ "$TASK_ARN" != "None" ]; then
-            aws ecs stop-task \
-              --cluster my-ec2-cluster \
-              --task $TASK_ARN \
-              --region $AWS_REGION
-          fi
-        elif [[ "${{ github.ref }}" == "refs/heads/branch2" ]]; then
-          TASK_ARN=$(aws ecs list-tasks \
-            --cluster my-ec2-cluster \
-            --service-name project2-service \
             --region $AWS_REGION \
             --query "taskArns[0]" \
             --output text)
