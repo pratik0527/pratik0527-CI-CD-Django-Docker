@@ -39,12 +39,6 @@ jobs:
         echo "Pushing Docker image to ECR: $IMAGE_URI:latest"
         docker push $IMAGE_URI:latest
 
-    - name: Fetch Latest Image Digest
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION: us-west-1
-      run: |
         echo "Fetching the latest image digest..."
         LATEST_DIGEST=$(aws ecr describe-images \
           --repository-name project1-app \
@@ -62,13 +56,28 @@ jobs:
         AWS_REGION: us-west-1
       run: |
         echo "Updating task definition to use the latest image digest..."
+
+        # Get the current task definition
         TASK_DEF=$(aws ecs describe-task-definition \
           --task-definition my-task-def \
           --region $AWS_REGION)
 
+        # Extract required fields and update the container image
         UPDATED_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE_URI "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app@${LATEST_DIGEST}" \
-          '.taskDefinition | .containerDefinitions[0].image=$IMAGE_URI')
+          '.taskDefinition | {
+            family: .family,
+            taskRoleArn: .taskRoleArn,
+            executionRoleArn: .executionRoleArn,
+            networkMode: .networkMode,
+            containerDefinitions: (.containerDefinitions | map(if .name == "project1-container" then .image = $IMAGE_URI else . end)),
+            volumes: .volumes,
+            placementConstraints: .placementConstraints,
+            requiresCompatibilities: .requiresCompatibilities,
+            cpu: .cpu,
+            memory: .memory
+          }')
 
+        # Save the cleaned-up task definition
         echo $UPDATED_TASK_DEF > updated-task-def.json
 
         echo "Registering updated task definition..."
