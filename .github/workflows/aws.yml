@@ -10,82 +10,79 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Docker
-      uses: docker/setup-buildx-action@v2
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
 
-    - name: Log in to Amazon ECR
-      uses: aws-actions/amazon-ecr-login@v1
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION: us-west-1
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-west-1
 
-    - name: Build and Push Docker Image for Project 1
-      env:
-        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-        AWS_REGION: us-west-1
-      run: |
-        IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app"
+      - name: Build and Push Docker Image for Project 1
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: us-west-1
+        run: |
+          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app"
 
-        # Build the Docker image
-        docker build -t $IMAGE_URI ./myproject
+          # Build the Docker image
+          docker build -t $IMAGE_URI ./myproject
 
-        # Tag the image with "latest"
-        docker tag $IMAGE_URI $IMAGE_URI:latest
+          # Tag the image with "latest"
+          docker tag $IMAGE_URI $IMAGE_URI:latest
 
-        # Push the Docker image to ECR
-        docker push $IMAGE_URI:latest
+          # Push the Docker image to ECR
+          docker push $IMAGE_URI:latest
 
-    - name: Update Task Definition
-      env:
-        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-        AWS_REGION: us-west-1
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      run: |
-        TASK_DEFINITION_JSON=$(aws ecs describe-task-definition \
-          --task-definition my-task-def \
-          --query "taskDefinition" \
-          --output json)
+      - name: Update Task Definition
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: us-west-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          TASK_DEFINITION_JSON=$(aws ecs describe-task-definition \
+            --task-definition my-task-def \
+            --query "taskDefinition" \
+            --output json)
 
-        # Remove metadata fields
-        CLEANED_TASK_DEFINITION_JSON=$(echo $TASK_DEFINITION_JSON | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
-        
-        # Update container definitions with the new image
-        UPDATED_TASK_DEFINITION=$(echo $CLEANED_TASK_DEFINITION_JSON | jq '.containerDefinitions |= map(if .name == "project1" then .image = "'${AWS_ACCOUNT_ID}'.dkr.ecr.'${AWS_REGION}'.amazonaws.com/project1-app:latest" else . end)')
+          # Remove metadata fields
+          CLEANED_TASK_DEFINITION_JSON=$(echo $TASK_DEFINITION_JSON | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          
+          # Update container definitions with the new image
+          UPDATED_TASK_DEFINITION=$(echo $CLEANED_TASK_DEFINITION_JSON | jq '.containerDefinitions |= map(if .name == "project1" then .image = "'${AWS_ACCOUNT_ID}'.dkr.ecr.'${AWS_REGION}'.amazonaws.com/project1-app:latest" else . end)')
 
-        # Save the updated task definition to a file
-        echo "$UPDATED_TASK_DEFINITION" > new-task-def.json
+          # Save the updated task definition to a file
+          echo "$UPDATED_TASK_DEFINITION" > new-task-def.json
 
-        # Register the updated task definition
-        aws ecs register-task-definition --cli-input-json file://new-task-def.json
+          # Register the updated task definition
+          aws ecs register-task-definition --cli-input-json file://new-task-def.json
 
-    
-    - name: Update ECS Service with Latest Task Definition
-    env:
-      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-      AWS_REGION: us-west-1
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-    run: |
-      # Get the latest revision of the task definition
-      LATEST_TASK_DEFINITION=$(aws ecs describe-task-definition \
-        --task-definition my-task-def \
-        --query "taskDefinition.taskDefinitionArn" \
-        --output text)
+      - name: Update ECS Service with Latest Task Definition
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: us-west-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          # Get the latest revision of the task definition
+          LATEST_TASK_DEFINITION=$(aws ecs describe-task-definition \
+            --task-definition my-task-def \
+            --query "taskDefinition.taskDefinitionArn" \
+            --output text)
 
-      echo "Latest task definition ARN: $LATEST_TASK_DEFINITION"
+          echo "Latest task definition ARN: $LATEST_TASK_DEFINITION"
 
-      # Update the ECS service to use the latest task definition
-      aws ecs update-service \
-        --cluster my-cluster \
-        --service test \
-        --task-definition $LATEST_TASK_DEFINITION \
-        --region $AWS_REGION
+          # Update the ECS service to use the latest task definition
+          aws ecs update-service \
+            --cluster my-cluster \
+            --service test \
+            --task-definition $LATEST_TASK_DEFINITION \
+            --region $AWS_REGION
 
-      echo "ECS service updated successfully to use the latest task definition."
-    
-    
+          echo "ECS service updated successfully to use the latest task definition."
