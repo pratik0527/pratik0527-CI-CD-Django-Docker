@@ -12,6 +12,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     - name: Set up Docker
       uses: docker/setup-buildx-action@v2
@@ -23,30 +25,28 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: us-west-1
 
-
     - name: Build and Push Docker Image
       env:
         AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
         AWS_REGION: us-west-1
       run: |
         IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app"
+
+        echo "Building Docker image..."
+        docker build --no-cache -t $IMAGE_URI ./myproject
         
-        # Build the Docker image
-        docker build -t $IMAGE_URI ./myproject
-        
-        # Tag the image with "latest"
+        echo "Tagging Docker image with 'latest'..."
         docker tag $IMAGE_URI $IMAGE_URI:latest
 
-        # Push the Docker image to ECR
+        echo "Pushing Docker image to ECR: $IMAGE_URI:latest"
         docker push $IMAGE_URI:latest
 
-    - name: Run New ECS Task
+    - name: Stop the Existing ECS Task
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: us-west-1
       run: |
-        # Stop the existing task
         TASK_ARN=$(aws ecs list-tasks \
           --cluster my-cluster \
           --family my-task-def \
@@ -55,13 +55,20 @@ jobs:
           --output text)
 
         if [ "$TASK_ARN" != "None" ]; then
+          echo "Stopping existing task: $TASK_ARN"
           aws ecs stop-task --cluster my-cluster --task $TASK_ARN --region $AWS_REGION
         fi
 
-        # Run a new task
+    - name: Run a New ECS Task
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: us-west-1
+      run: |
+        echo "Starting a new ECS task..."
         aws ecs run-task \
           --cluster my-cluster \
           --launch-type FARGATE \
           --network-configuration "awsvpcConfiguration={subnets=[subnet-083f027b4042983e3],securityGroups=[sg-0ba1da8a176fc1e1c],assignPublicIp=ENABLED}" \
-          --task-definition my-task-def:2 \
+          --task-definition my-task-def \
           --region $AWS_REGION
