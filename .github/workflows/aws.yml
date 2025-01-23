@@ -55,12 +55,10 @@ jobs:
         CLEANED_TASK_DEFINITION_JSON=$(echo $TASK_DEFINITION_JSON | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
         
         # Update container definitions with the new image
-        UPDATED_CONTAINER_DEFINITIONS=$(echo $CLEANED_TASK_DEFINITION_JSON | jq '.containerDefinitions[] | select(.name == "project1") | .image = "'${AWS_ACCOUNT_ID}'.dkr.ecr.'${AWS_REGION}'.amazonaws.com/project1-app:latest"' | jq -s '.')
+        UPDATED_TASK_DEFINITION=$(echo $CLEANED_TASK_DEFINITION_JSON | jq '.containerDefinitions |= map(if .name == "project1" then .image = "'${AWS_ACCOUNT_ID}'.dkr.ecr.'${AWS_REGION}'.amazonaws.com/project1-app:latest" else . end)')
 
-        # Replace the container definitions in the task definition
-        NEW_TASK_DEFINITION=$(echo $CLEANED_TASK_DEFINITION_JSON | jq --argjson containers "$UPDATED_CONTAINER_DEFINITIONS" '.containerDefinitions = $containers')
-
-        echo "$NEW_TASK_DEFINITION" > new-task-def.json
+        # Save the updated task definition to a file
+        echo "$UPDATED_TASK_DEFINITION" > new-task-def.json
 
         # Register the updated task definition
         aws ecs register-task-definition --cli-input-json file://new-task-def.json
