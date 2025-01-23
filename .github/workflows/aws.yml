@@ -1,12 +1,9 @@
-name: Deploy to ECS
+name: Deploy Project 1 to ECS
 
 on:
   push:
     branches:
-      - main
       - branch1
-      - branch2
-  workflow_dispatch:
 
 jobs:
   deploy:
@@ -24,37 +21,39 @@ jobs:
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION: ${{ secrets.AWS_REGION }}
+        AWS_REGION: us-west-1
 
-    - name: Build and push Docker image
+    - name: Build and Push Docker Image
       env:
-        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-        AWS_REGION: ${{ secrets.AWS_REGION }}
+        AWS_ACCOUNT_ID: 014498655744
+        AWS_REGION: us-west-1
       run: |
-        if [[ "${{ github.ref }}" == "refs/heads/branch1" ]]; then
-          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app:latest"
-          docker build -t $IMAGE_URI ./myproject
-          docker push $IMAGE_URI
-        fi
+        IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app"
+        docker build -t $IMAGE_URI ./myproject
+        docker push $IMAGE_URI
 
-    - name: Restart ECS Task
+    - name: Run New ECS Task
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION: ${{ secrets.AWS_REGION }}
+        AWS_REGION: us-west-1
       run: |
-        if [[ "${{ github.ref }}" == "refs/heads/branch1" ]]; then
-          TASK_ARN=$(aws ecs list-tasks \
-            --cluster my-ec2-cluster \
-            --service-name project1-service \
-            --region $AWS_REGION \
-            --query "taskArns[0]" \
-            --output text)
+        # Stop existing tasks
+        TASK_ARN=$(aws ecs list-tasks \
+          --cluster my-cluster \
+          --family my-task-def \
+          --region $AWS_REGION \
+          --query "taskArns[0]" \
+          --output text)
 
-          if [ "$TASK_ARN" != "None" ]; then
-            aws ecs stop-task \
-              --cluster my-ec2-cluster \
-              --task $TASK_ARN \
-              --region $AWS_REGION
-          fi
+        if [ "$TASK_ARN" != "None" ]; then
+          aws ecs stop-task --cluster my-cluster --task $TASK_ARN --region $AWS_REGION
         fi
+
+        # Run new task
+        aws ecs run-task \
+          --cluster my-cluster \
+          --launch-type FARGATE \
+          --network-configuration "awsvpcConfiguration={subnets=[subnet-083f027b4042983e3],securityGroups=[sg-0ba1da8a176fc1e1c],assignPublicIp=ENABLED}" \
+          --task-definition my-task-def:2 \
+          --region $AWS_REGION
