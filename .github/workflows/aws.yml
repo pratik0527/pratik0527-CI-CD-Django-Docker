@@ -39,15 +39,36 @@ jobs:
         # Push the Docker image to ECR
         docker push $IMAGE_URI:latest
 
-    - name: Update ECS Service to Deploy New Task
+    - name: Stop Existing ECS Tasks
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: us-west-1
       run: |
-        # Update the ECS service to use the latest task definition
-        aws ecs update-service \
+        # Fetch the currently running tasks for the task family
+        TASK_ARN_LIST=$(aws ecs list-tasks \
           --cluster my-cluster \
-          --service project2-service \
-          --force-new-deployment \
+          --family my-task-def \
+          --region $AWS_REGION \
+          --query "taskArns" \
+          --output text)
+
+        # Stop all running tasks
+        for TASK_ARN in $TASK_ARN_LIST; do
+          echo "Stopping task $TASK_ARN"
+          aws ecs stop-task --cluster my-cluster --task $TASK_ARN --region $AWS_REGION
+        done
+
+    - name: Run New ECS Task
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: us-west-1
+      run: |
+        # Run a new task with the latest task definition
+        aws ecs run-task \
+          --cluster my-cluster \
+          --launch-type FARGATE \
+          --network-configuration "awsvpcConfiguration={subnets=[subnet-083f027b4042983e3],securityGroups=[sg-0ba1da8a176fc1e1c],assignPublicIp=ENABLED}" \
+          --task-definition my-task-def \
           --region $AWS_REGION
