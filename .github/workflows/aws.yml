@@ -29,8 +29,15 @@ jobs:
         AWS_REGION: us-west-1
       run: |
         IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project2-app"
+        
+        # Build the Docker image
         docker build -t $IMAGE_URI ./myproject1
-        docker push $IMAGE_URI
+        
+        # Tag the image with "latest"
+        docker tag $IMAGE_URI $IMAGE_URI:latest
+
+        # Push the Docker image to ECR
+        docker push $IMAGE_URI:latest
 
     - name: Run New ECS Task
       env:
