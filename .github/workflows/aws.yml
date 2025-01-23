@@ -34,10 +34,10 @@ name: Deploy Project 1 to ECS
          docker build --no-cache -t $IMAGE_URI ./myproject
         
          # Tag the image with "latest"
-         docker tag $IMAGE_URI $IMAGE_URI:latests
+         docker tag $IMAGE_URI $IMAGE_URI:new
 
          # Push the Docker image to ECR
-         docker push $IMAGE_URI:latests
+         docker push $IMAGE_URI:new
 
      - name: Stop Existing ECS Tasks
        env:
