@@ -33,7 +33,7 @@ jobs:
       run: |
         if [[ "${{ github.ref }}" == "refs/heads/branch1" ]]; then
           IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app:latest"
-          docker build -t $IMAGE_URI ./project1
+          docker build -t $IMAGE_URI ./myproject
           docker push $IMAGE_URI
         fi
 
