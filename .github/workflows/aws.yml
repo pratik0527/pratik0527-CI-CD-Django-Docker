@@ -26,7 +26,7 @@ jobs:
 
     - name: Build and Push Docker Image
       env:
-        AWS_ACCOUNT_ID: 014498655744
+        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
         AWS_REGION: us-west-1
       run: |
         IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app"
