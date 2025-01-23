@@ -1,78 +1,5 @@
-# name: Deploy Project 1 to ECS
-
-# on:
-#   push:
-#     branches:
-#       - branch1
-
-# jobs:
-#   deploy:
-#     runs-on: ubuntu-latest
-
-#     steps:
-#     - name: Checkout code
-#       uses: actions/checkout@v3
-
-#     - name: Set up Docker
-#       uses: docker/setup-buildx-action@v2
-
-#     - name: Log in to Amazon ECR
-#       uses: aws-actions/amazon-ecr-login@v1
-#       env:
-#         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#         AWS_REGION: us-west-1
-
-#     - name: Build and Push Docker Image
-#       env:
-#         AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-#         AWS_REGION: us-west-1
-#       run: |
-#         IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app"
-        
-#         # Build the Docker image
-#         docker build --no-cache -t $IMAGE_URI ./myproject
-        
-#         # Tag the image with "latest"
-#         docker tag $IMAGE_URI $IMAGE_URI:latest
-
-#         # Push the Docker image to ECR
-#         docker push $IMAGE_URI:latest
-
-#     - name: Stop Existing ECS Tasks
-#       env:
-#         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#         AWS_REGION: us-west-1
-#       run: |
-#         # Fetch the currently running tasks for the task family
-#         TASK_ARN_LIST=$(aws ecs list-tasks \
-#           --cluster my-cluster \
-#           --family my-task-def \
-#           --region $AWS_REGION \
-#           --query "taskArns" \
-#           --output text)
-
-#         # Stop all running tasks
-#         for TASK_ARN in $TASK_ARN_LIST; do
-#           echo "Stopping task $TASK_ARN"
-#           aws ecs stop-task --cluster my-cluster --task $TASK_ARN --region $AWS_REGION
-#         done
-
-#     - name: Run New ECS Task
-#       env:
-#         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#         AWS_REGION: us-west-1
-#       run: |
-#         # Run a new task with the latest task definition
-#         aws ecs run-task \
-#           --cluster my-cluster \
-#           --launch-type FARGATE \
-#           --network-configuration "awsvpcConfiguration={subnets=[subnet-083f027b4042983e3],securityGroups=[sg-0ba1da8a176fc1e1c],assignPublicIp=ENABLED}" \
-#           --task-definition my-task-def \
-#           --region $AWS_REGION
 name: Deploy Project 1 to ECS
+
 on:
   push:
     branches:
@@ -81,35 +8,96 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-west-1
+    - name: Set up Docker
+      uses: docker/setup-buildx-action@v2
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+    - name: Log in to Amazon ECR
+      uses: aws-actions/amazon-ecr-login@v1
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: us-west-1
 
-      - name: Build, tag, and push image to Amazon ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: project1-app
-          IMAGE_TAG: latest
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./myproject
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+    - name: Build and Push Docker Image
+      env:
+        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        AWS_REGION: us-west-1
+      run: |
+        IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app"
+        
+        echo "Building Docker image..."
+        docker build --no-cache -t $IMAGE_URI ./myproject
+        
+        echo "Tagging Docker image with 'latest'..."
+        docker tag $IMAGE_URI $IMAGE_URI:latest
 
-      - name: Run New ECS Task
-        run: |
-          aws ecs run-task \
-            --cluster my-cluster \
-            --task-definition my-task-def \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[subnet-083f027b4042983e3],securityGroups=[sg-0ba1da8a176fc1e1c],assignPublicIp=ENABLED}" \
-            --region us-west-1
+        echo "Pushing Docker image to ECR: $IMAGE_URI:latest"
+        docker push $IMAGE_URI:latest
+
+        echo "Fetching the latest image digest..."
+        LATEST_DIGEST=$(aws ecr describe-images \
+          --repository-name project1-app \
+          --region $AWS_REGION \
+          --query 'imageDetails[?imageTags[?contains(@, `latest`)]].imageDigest' \
+          --output text)
+        
+        echo "Latest image digest: $LATEST_DIGEST"
+        echo "LATEST_DIGEST=$LATEST_DIGEST" >> $GITHUB_ENV
+
+    - name: Update Task Definition with Latest Digest
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: us-west-1
+      run: |
+        echo "Updating task definition to use the latest image digest..."
+        TASK_DEF=$(aws ecs describe-task-definition \
+          --task-definition my-task-def \
+          --region $AWS_REGION)
+
+        UPDATED_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE_URI "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app@${LATEST_DIGEST}" \
+          '.taskDefinition | .containerDefinitions[0].image=$IMAGE_URI')
+
+        echo $UPDATED_TASK_DEF > updated-task-def.json
+
+        echo "Registering updated task definition..."
+        aws ecs register-task-definition --cli-input-json file://updated-task-def.json --region $AWS_REGION
+
+    - name: Stop Existing ECS Tasks
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: us-west-1
+      run: |
+        # Fetch the currently running tasks for the task family
+        TASK_ARN_LIST=$(aws ecs list-tasks \
+          --cluster my-cluster \
+          --family my-task-def \
+          --region $AWS_REGION \
+          --query "taskArns" \
+          --output text)
+
+        # Stop all running tasks
+        for TASK_ARN in $TASK_ARN_LIST; do
+          echo "Stopping task $TASK_ARN"
+          aws ecs stop-task --cluster my-cluster --task $TASK_ARN --region $AWS_REGION
+        done
+
+    - name: Run New ECS Task
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: us-west-1
+      run: |
+        echo "Starting a new ECS task..."
+        aws ecs run-task \
+          --cluster my-cluster \
+          --launch-type FARGATE \
+          --network-configuration "awsvpcConfiguration={subnets=[subnet-083f027b4042983e3],securityGroups=[sg-0ba1da8a176fc1e1c],assignPublicIp=ENABLED}" \
+          --task-definition my-task-def \
+          --region $AWS_REGION
