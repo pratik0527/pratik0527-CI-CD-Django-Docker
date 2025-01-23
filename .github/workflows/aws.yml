@@ -85,9 +85,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v2
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -95,38 +92,24 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-west-1
 
-      - name: Log in to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build and Push Docker Image
+      - name: Build, tag, and push image to Amazon ECR
         env:
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: project1-app
+          IMAGE_TAG: latest
         run: |
-          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.us-west-1.amazonaws.com/project1-app"
-          docker build --no-cache -t $IMAGE_URI ./myproject
-          docker tag $IMAGE_URI $IMAGE_URI:latest
-          docker push $IMAGE_URI:latest
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./myproject
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      - name: Update ECS Service
+      - name: Run New ECS Task
         run: |
-          # Update the task definition with the new image
-          TASK_DEFINITION=$(aws ecs describe-task-definition \
-            --task-definition my-task-def \
-            --region us-west-1 \
-            --query taskDefinition)
-          
-          NEW_TASK_DEF=$(echo $TASK_DEFINITION | jq --arg IMAGE "$IMAGE_URI:latest" \
-            '.containerDefinitions[0].image = $IMAGE')
-          
-          # Register new task definition
-          REGISTERED_TASK_DEF=$(aws ecs register-task-definition \
-            --cli-input-json "$NEW_TASK_DEF" \
-            --region us-west-1)
-          
-          # Update ECS service to use new task definition
-          aws ecs update-service \
+          aws ecs run-task \
             --cluster my-cluster \
-            --service my-service \
             --task-definition my-task-def \
-            --force-new-deployment \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[subnet-083f027b4042983e3],securityGroups=[sg-0ba1da8a176fc1e1c],assignPublicIp=ENABLED}" \
             --region us-west-1
