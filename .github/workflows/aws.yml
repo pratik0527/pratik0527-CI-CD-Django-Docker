@@ -29,8 +29,15 @@ jobs:
         AWS_REGION: us-west-1
       run: |
         IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app"
+        
+        # Build the Docker image
         docker build -t $IMAGE_URI ./myproject
-        docker push $IMAGE_URI
+        
+        # Tag the image with "latest"
+        docker tag $IMAGE_URI $IMAGE_URI:latest
+
+        # Push the Docker image to ECR
+        docker push $IMAGE_URI:latest
 
     - name: Run New ECS Task
       env:
@@ -38,7 +45,7 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: us-west-1
       run: |
-        # Stop existing tasks
+        # Stop the existing task
         TASK_ARN=$(aws ecs list-tasks \
           --cluster my-cluster \
           --family my-task-def \
@@ -50,7 +57,7 @@ jobs:
           aws ecs stop-task --cluster my-cluster --task $TASK_ARN --region $AWS_REGION
         fi
 
-        # Run new task
+        # Run a new task
         aws ecs run-task \
           --cluster my-cluster \
           --launch-type FARGATE \
