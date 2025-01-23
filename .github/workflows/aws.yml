@@ -48,30 +48,6 @@ jobs:
 
         echo "Image digest: $IMAGE_DIGEST"
 
-    - name: Register New Task Definition Revision
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION: us-west-1
-      run: |
-        # Fetch the current task definition
-        TASK_DEFINITION=$(aws ecs describe-task-definition \
-          --task-definition my-task-def \
-          --region $AWS_REGION)
-
-        # Update the container image URI digest for project1-app
-        NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE_DIGEST "$IMAGE_DIGEST" \
-          '.taskDefinition | del(.status, .revision, .taskDefinitionArn, .requiresAttributes) |
-          .containerDefinitions[1].image += "@" + $IMAGE_DIGEST')
-
-        echo "$NEW_TASK_DEFINITION" > new-task-def.json
-        echo "Registering new task definition revision..."
-
-        # Register the new task definition revision
-        aws ecs register-task-definition \
-          --cli-input-json file://new-task-def.json \
-          --region $AWS_REGION
-
     - name: Stop Existing ECS Tasks
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
