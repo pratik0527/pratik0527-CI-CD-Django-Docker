@@ -31,44 +31,47 @@ jobs:
         AWS_REGION: ${{ secrets.AWS_REGION }}
       run: |
         if [[ "${{ github.ref }}" == "refs/heads/branch1" ]]; then
-          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app"
+          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app:latest"
           docker build -t $IMAGE_URI ./project1
           docker push $IMAGE_URI
         elif [[ "${{ github.ref }}" == "refs/heads/branch2" ]]; then
-          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project2-app"
+          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project2-app:latest"
           docker build -t $IMAGE_URI ./project2
           docker push $IMAGE_URI
         fi
 
-    - name: Update ECS Task Definition
+    - name: Restart ECS Task
       env:
-        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-        AWS_REGION: ${{ secrets.AWS_REGION }}
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
       run: |
-        TASK_DEF=$(aws ecs describe-task-definition \
-          --task-definition multi-container-task \
-          --region $AWS_REGION)
-
         if [[ "${{ github.ref }}" == "refs/heads/branch1" ]]; then
-          UPDATED_TASK_DEF=$(echo $TASK_DEF | jq '.taskDefinition | .containerDefinitions[0].image="'${AWS_ACCOUNT_ID}'.dkr.ecr.'${AWS_REGION}'.amazonaws.com/project1-app:latest"')
+          TASK_ARN=$(aws ecs list-tasks \
+            --cluster my-ec2-cluster \
+            --service-name project1-service \
+            --region $AWS_REGION \
+            --query "taskArns[0]" \
+            --output text)
+
+          if [ "$TASK_ARN" != "None" ]; then
+            aws ecs stop-task \
+              --cluster my-ec2-cluster \
+              --task $TASK_ARN \
+              --region $AWS_REGION
+          fi
         elif [[ "${{ github.ref }}" == "refs/heads/branch2" ]]; then
-          UPDATED_TASK_DEF=$(echo $TASK_DEF | jq '.taskDefinition | .containerDefinitions[1].image="'${AWS_ACCOUNT_ID}'.dkr.ecr.'${AWS_REGION}'.amazonaws.com/project2-app:latest"')
+          TASK_ARN=$(aws ecs list-tasks \
+            --cluster my-ec2-cluster \
+            --service-name project2-service \
+            --region $AWS_REGION \
+            --query "taskArns[0]" \
+            --output text)
+
+          if [ "$TASK_ARN" != "None" ]; then
+            aws ecs stop-task \
+              --cluster my-ec2-cluster \
+              --task $TASK_ARN \
+              --region $AWS_REGION
+          fi
         fi
-
-        echo $UPDATED_TASK_DEF > updated-task-def.json
-        aws ecs register-task-definition --cli-input-json file://updated-task-def.json --region $AWS_REGION
-
-    - name: Force New Deployment
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION: ${{ secrets.AWS_REGION }}
-      run: |
-        aws ecs update-service \
-          --cluster my-ec2-cluster \
-          --service my-service \
-          --task-definition multi-container-task \
-          --force-new-deployment \
-          --region $AWS_REGION
