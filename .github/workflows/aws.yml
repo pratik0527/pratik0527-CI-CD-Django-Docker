@@ -23,30 +23,41 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: us-west-1
 
-    - name: Build and Push Docker Image
+    - name: Build and Push Docker Image for Project 1
       env:
         AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
         AWS_REGION: us-west-1
       run: |
         IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app"
-        
+
         # Build the Docker image
-        docker build --no-cache -t $IMAGE_URI ./myproject
-        
+        docker build -t $IMAGE_URI ./myproject
+
         # Tag the image with "latest"
         docker tag $IMAGE_URI $IMAGE_URI:latest
 
         # Push the Docker image to ECR
         docker push $IMAGE_URI:latest
 
-        # Retrieve the digest of the pushed image
-        IMAGE_DIGEST=$(aws ecr describe-images \
-          --repository-name project1-app \
-          --region $AWS_REGION \
-          --query 'imageDetails[?imageTags[?@ == `latest`]].imageDigest' \
-          --output text)
+    - name: Update Task Definition
+      env:
+        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        AWS_REGION: us-west-1
+      run: |
+        TASK_DEFINITION_JSON=$(aws ecs describe-task-definition \
+          --task-definition my-task-def \
+          --query "taskDefinition" \
+          --output json)
 
-        echo "Image digest: $IMAGE_DIGEST"
+        # Update container definitions
+        UPDATED_TASK_DEFINITION=$(echo $TASK_DEFINITION_JSON | jq '.containerDefinitions[] | select(.name == "project1") | .image = "'${AWS_ACCOUNT_ID}'.dkr.ecr.'${AWS_REGION}'.amazonaws.com/project1-app:latest"' | jq -s '.')
+
+        NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION_JSON | jq --argjson containers "$UPDATED_TASK_DEFINITION" '.containerDefinitions = $containers')
+
+        echo "$NEW_TASK_DEFINITION" > new-task-def.json
+
+        # Register the updated task definition
+        aws ecs register-task-definition --cli-input-json file://new-task-def.json
 
     - name: Stop Existing ECS Tasks
       env:
@@ -54,7 +65,6 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: us-west-1
       run: |
-        # Fetch the currently running tasks for the task family
         TASK_ARN_LIST=$(aws ecs list-tasks \
           --cluster my-cluster \
           --family my-task-def \
@@ -62,7 +72,6 @@ jobs:
           --query "taskArns" \
           --output text)
 
-        # Stop all running tasks
         for TASK_ARN in $TASK_ARN_LIST; do
           echo "Stopping task $TASK_ARN"
           aws ecs stop-task --cluster my-cluster --task $TASK_ARN --region $AWS_REGION
@@ -74,7 +83,6 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: us-west-1
       run: |
-        echo "Running a new ECS task..."
         aws ecs run-task \
           --cluster my-cluster \
           --launch-type FARGATE \
