@@ -31,13 +31,46 @@ jobs:
         IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/project1-app"
         
         # Build the Docker image
-        docker build -t $IMAGE_URI ./myproject
+        docker build --no-cache -t $IMAGE_URI ./myproject
         
         # Tag the image with "latest"
-        docker tag $IMAGE_URI $IMAGE_URI:latests
+        docker tag $IMAGE_URI $IMAGE_URI:latest
 
         # Push the Docker image to ECR
-        docker push $IMAGE_URI:latests
+        docker push $IMAGE_URI:latest
+
+        # Retrieve the digest of the pushed image
+        IMAGE_DIGEST=$(aws ecr describe-images \
+          --repository-name project1-app \
+          --region $AWS_REGION \
+          --query 'imageDetails[?imageTags[?@ == `latest`]].imageDigest' \
+          --output text)
+
+        echo "Image digest: $IMAGE_DIGEST"
+
+    - name: Register New Task Definition Revision
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: us-west-1
+      run: |
+        # Fetch the current task definition
+        TASK_DEFINITION=$(aws ecs describe-task-definition \
+          --task-definition my-task-def \
+          --region $AWS_REGION)
+
+        # Update the container image URI digest for project1-app
+        NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE_DIGEST "$IMAGE_DIGEST" \
+          '.taskDefinition | del(.status, .revision, .taskDefinitionArn, .requiresAttributes) |
+          .containerDefinitions[1].image += "@" + $IMAGE_DIGEST')
+
+        echo "$NEW_TASK_DEFINITION" > new-task-def.json
+        echo "Registering new task definition revision..."
+
+        # Register the new task definition revision
+        aws ecs register-task-definition \
+          --cli-input-json file://new-task-def.json \
+          --region $AWS_REGION
 
     - name: Stop Existing ECS Tasks
       env:
@@ -65,7 +98,7 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: us-west-1
       run: |
-        # Run a new task with the latest task definition
+        echo "Running a new ECS task..."
         aws ecs run-task \
           --cluster my-cluster \
           --launch-type FARGATE \
