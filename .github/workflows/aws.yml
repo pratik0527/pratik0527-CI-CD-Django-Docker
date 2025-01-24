@@ -55,7 +55,7 @@ jobs:
           CLEANED_TASK_DEFINITION_JSON=$(echo $TASK_DEFINITION_JSON | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
           
           # Update container definitions with the new image
-          UPDATED_TASK_DEFINITION=$(echo $CLEANED_TASK_DEFINITION_JSON | jq '.containerDefinitions |= map(if .name == "project1" then .image = "'${AWS_ACCOUNT_ID}'.dkr.ecr.'${AWS_REGION}'.amazonaws.com/project1-app:latest" else . end)')
+          UPDATED_TASK_DEFINITION=$(echo $CLEANED_TASK_DEFINITION_JSON | jq '.containerDefinitions |= map(if .name == "project1" then .image = "'${AWS_ACCOUNT_ID}'.dkr.ecr.'${AWS_REGION}'.amazonaws.com/project1-app:latest" | .portMappings=[{"containerPort": 8000, "hostPort": 8000}] elif .name == "project2" then .portMappings=[{"containerPort": 8001, "hostPort": 8001}] else . end)')
 
           # Save the updated task definition to a file
           echo "$UPDATED_TASK_DEFINITION" > new-task-def.json
