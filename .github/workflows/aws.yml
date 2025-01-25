@@ -81,7 +81,7 @@ jobs:
           # Update the ECS service to use the latest task definition
           aws ecs update-service \
             --cluster my-cluster \
-            --service pratik \
+            --service pratikservice \
             --task-definition $LATEST_TASK_DEFINITION \
             --region $AWS_REGION
 
