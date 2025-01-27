@@ -1,0 +1,37 @@
+name: Sync Branches
+
+# Run the workflow on a schedule (end of the working day)
+on:
+  schedule:
+    - cron: '0 19 * * 1-5' # Runs at 11:00 AM (19:00) UTC, Monday to Friday
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  sync-branches:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Configure Git
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Step 3: Sync branch1 to branch2
+      - name: Sync branch1 to branch2
+        run: |
+          # Ensure branch1 is up-to-date
+          git checkout branch1
+          git pull origin branch1
+
+          # Check out branch2 and merge changes from branch1
+          git checkout branch2
+          git pull origin branch2
+          git merge branch1 --no-edit
+
+          # Push the updated branch2
+          git push origin branch2
