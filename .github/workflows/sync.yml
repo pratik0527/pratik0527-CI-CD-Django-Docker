@@ -1,9 +1,9 @@
-name: Sync Branches
+name: Sync Branch1 to Branch2
 
 on:
   schedule:
-    - cron: '20 20 * * 1-5' # Runs at 18:55 UTC, Monday to Friday
-  workflow_dispatch: # Allows manual trigger
+    - cron: '38 20 * * 1-5' # Runs at 6:00 PM UTC, Monday to Friday
+  workflow_dispatch: # Allows manual trigger if needed
 
 jobs:
   sync-branches:
@@ -14,7 +14,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Fetch all branches to ensure branch1 and branch2 are available
+          fetch-depth: 0 # Fetch all branches
 
       # Step 2: Configure Git
       - name: Configure Git
@@ -22,26 +22,34 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      # Step 3: Fetch branches
-      - name: Fetch all branches
+      # Step 3: Fetch all branches
+      - name: Fetch branches
         run: |
-          git fetch --all
-          echo "Available branches:"
+          git fetch origin
+          echo "Fetched all branches:"
           git branch -a
 
       # Step 4: Sync branch1 to branch2
       - name: Sync branch1 to branch2
         run: |
+          # Checkout branch1 and pull the latest changes
           echo "Checking out branch1..."
-          git checkout branch1 || git checkout -b branch1 origin/branch1
+          git checkout branch1
           git pull origin branch1
-          
+
+          # Checkout branch2 and pull the latest changes
           echo "Checking out branch2..."
           git checkout branch2 || git checkout -b branch2 origin/branch2
           git pull origin branch2
-          
+
+          # Merge changes from branch1 into branch2
           echo "Merging branch1 into branch2..."
           git merge branch1 --no-edit
 
+          # Push the updated branch2
           echo "Pushing changes to branch2..."
           git push origin branch2
+
+      # Step 5: Confirm Success
+      - name: Log Success
+        run: echo "Successfully synced branch1 to branch2!"
