@@ -3,7 +3,7 @@ name: Sync Branches
 # Run the workflow on a schedule (end of the working day)
 on:
   schedule:
-    - cron: '18 19 * * 1-5' # Runs at 11:00 AM (19:00) UTC, Monday to Friday
+    - cron: '23 19 * * 1-5' # Runs at 11:00 AM (19:00) UTC, Monday to Friday
   workflow_dispatch: # Allows manual trigger
 
 jobs:
