@@ -1,22 +1,20 @@
 name: Sync Branches
 
-# Run the workflow on a schedule (end of the working day)
 on:
   schedule:
-    - cron: '23 19 * * 1-5' # Runs at 11:00 AM (19:00) UTC, Monday to Friday
+    - cron: '31 19 * * 1-5' # Runs at 18:55 UTC, Monday to Friday
   workflow_dispatch: # Allows manual trigger
 
 jobs:
   sync-branches:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
 
     steps:
-      # Step 1: Check out the repository
+      # Step 1: Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all branches to ensure branch1 and branch2 are available
 
       # Step 2: Configure Git
       - name: Configure Git
@@ -24,17 +22,26 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      # Step 3: Sync branch1 to branch2
+      # Step 3: Fetch branches
+      - name: Fetch all branches
+        run: |
+          git fetch --all
+          echo "Available branches:"
+          git branch -a
+
+      # Step 4: Sync branch1 to branch2
       - name: Sync branch1 to branch2
         run: |
-          # Ensure branch1 is up-to-date
-          git checkout branch1
+          echo "Checking out branch1..."
+          git checkout branch1 || git checkout -b branch1 origin/branch1
           git pull origin branch1
-
-          # Check out branch2 and merge changes from branch1
-          git checkout branch2
+          
+          echo "Checking out branch2..."
+          git checkout branch2 || git checkout -b branch2 origin/branch2
           git pull origin branch2
+          
+          echo "Merging branch1 into branch2..."
           git merge branch1 --no-edit
 
-          # Push the updated branch2
+          echo "Pushing changes to branch2..."
           git push origin branch2
