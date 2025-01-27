@@ -2,7 +2,7 @@ name: Sync Branch1 to Branch2
 
 on:
   schedule:
-    - cron: '38 20 * * 1-5' # Runs at 6:00 PM UTC, Monday to Friday
+    - cron: '58 22 * * 1-5' # Runs at 6:00 PM UTC, Monday to Friday
   workflow_dispatch: # Allows manual trigger if needed
 
 jobs:
@@ -29,7 +29,7 @@ jobs:
           echo "Fetched all branches:"
           git branch -a
 
-      # Step 4: Sync branch1 to branch2
+      # Step 4: Sync branch1 to branch2 (Force Overwrite)
       - name: Sync branch1 to branch2
         run: |
           # Checkout branch1 and pull the latest changes
@@ -37,18 +37,14 @@ jobs:
           git checkout branch1
           git pull origin branch1
 
-          # Checkout branch2 and pull the latest changes
+          # Checkout branch2 and reset it to branch1
           echo "Checking out branch2..."
           git checkout branch2 || git checkout -b branch2 origin/branch2
-          git pull origin branch2
-
-          # Merge changes from branch1 into branch2
-          echo "Merging branch1 into branch2..."
-          git merge branch1 --no-edit
+          git reset --hard branch1
 
           # Push the updated branch2
           echo "Pushing changes to branch2..."
-          git push origin branch2
+          git push origin branch2 --force
 
       # Step 5: Confirm Success
       - name: Log Success
