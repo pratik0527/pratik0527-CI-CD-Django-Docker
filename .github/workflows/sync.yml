@@ -2,7 +2,7 @@ name: Sync Branches
 
 on:
   schedule:
-    - cron: '54 19 * * 1-5' # Runs at 18:55 UTC, Monday to Friday
+    - cron: '06 20 * * 1-5' # Runs at 18:55 UTC, Monday to Friday
   workflow_dispatch: # Allows manual trigger
 
 jobs:
@@ -29,8 +29,8 @@ jobs:
           echo "Available branches:"
           git branch -a
 
-      # Step 4: Sync branch1 to branch2
-      - name: Sync branch1 to branch2
+      # Step 4: Sync myproject to myproject1
+      - name: Sync myproject to myproject1
         run: |
           echo "Checking out branch1..."
           git checkout branch1 || git checkout -b branch1 origin/branch1
@@ -39,8 +39,8 @@ jobs:
           echo "Checking out branch2..."
           git checkout branch2 || git checkout -b branch2 origin/branch2
           git pull origin branch2
-
-          echo "Copying files from myproject to myproject1..."
+          
+          echo "Copying files from myproject in branch1 to myproject1 in branch2..."
           rsync -av --delete myproject/ myproject1/
 
           echo "Committing changes to branch2..."
