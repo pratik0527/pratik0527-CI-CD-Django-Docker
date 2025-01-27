@@ -2,7 +2,7 @@ name: Sync Branches
 
 on:
   schedule:
-    - cron: '31 19 * * 1-5' # Runs at 18:55 UTC, Monday to Friday
+    - cron: '38 19 * * 1-5' # Runs at 18:55 UTC, Monday to Friday
   workflow_dispatch: # Allows manual trigger
 
 jobs:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout code
+      # Step 1: Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v3
         with:
@@ -22,26 +22,29 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      # Step 3: Fetch branches
-      - name: Fetch all branches
+      # Step 3: Sync `myproject` in branch1 to `myproject1` in branch2
+      - name: Sync folder from branch1 to branch2
         run: |
-          git fetch --all
-          echo "Available branches:"
-          git branch -a
+          # Ensure both branches are up-to-date
+          git fetch origin
 
-      # Step 4: Sync branch1 to branch2
-      - name: Sync branch1 to branch2
-        run: |
-          echo "Checking out branch1..."
-          git checkout branch1 || git checkout -b branch1 origin/branch1
+          # Checkout branch1 and pull latest changes
+          git checkout branch1
           git pull origin branch1
-          
-          echo "Checking out branch2..."
-          git checkout branch2 || git checkout -b branch2 origin/branch2
-          git pull origin branch2
-          
-          echo "Merging branch1 into branch2..."
-          git merge branch1 --no-edit
 
-          echo "Pushing changes to branch2..."
+          # Copy the `myproject` folder to a temporary location
+          mkdir -p /tmp/sync
+          cp -R myproject/* /tmp/sync/
+
+          # Checkout branch2 and pull latest changes
+          git checkout branch2
+          git pull origin branch2
+
+          # Sync the `myproject` folder into `myproject1`
+          mkdir -p myproject1
+          cp -R /tmp/sync/* myproject1/
+
+          # Add, commit, and push changes
+          git add myproject1
+          git commit -m "Sync myproject from branch1 to myproject1 in branch2" || echo "No changes to commit"
           git push origin branch2
