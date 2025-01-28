@@ -2,7 +2,7 @@ name: Sync Branch1 to Branch2
 
 on:
   schedule:
-    - cron: '58 22 * * 1-5' # Runs at 6:00 PM UTC, Monday to Friday
+    - cron: '5 2 * * 1-5' # Runs at 6:00 PM UTC, Monday to Friday
   workflow_dispatch: # Allows manual trigger if needed
 
 jobs:
@@ -15,6 +15,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0 # Fetch all branches
+          token: ${{ secrets.PAT }} # Use the PAT for authentication
 
       # Step 2: Configure Git
       - name: Configure Git
@@ -29,7 +30,7 @@ jobs:
           echo "Fetched all branches:"
           git branch -a
 
-      # Step 4: Sync branch1 to branch2 (Force Overwrite)
+      # Step 4: Sync branch1 to branch2
       - name: Sync branch1 to branch2
         run: |
           # Checkout branch1 and pull the latest changes
@@ -37,14 +38,18 @@ jobs:
           git checkout branch1
           git pull origin branch1
 
-          # Checkout branch2 and reset it to branch1
+          # Checkout branch2 and pull the latest changes
           echo "Checking out branch2..."
           git checkout branch2 || git checkout -b branch2 origin/branch2
-          git reset --hard branch1
+          git pull origin branch2
 
-          # Push the updated branch2
+          # Merge changes from branch1 into branch2
+          echo "Merging branch1 into branch2..."
+          git merge branch1 --no-edit
+
+          # Push the updated branch2 using the PAT
           echo "Pushing changes to branch2..."
-          git push origin branch2 --force
+          git push origin branch2
 
       # Step 5: Confirm Success
       - name: Log Success
